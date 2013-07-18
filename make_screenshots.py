@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import glob
+import argparse
 import json
 
 def compile_waxsim():
@@ -17,7 +18,7 @@ def compile_waxsim():
 
 def compile_app():
     previous_dir = os.getcwd()
-    os.chdir(options['project_path'])
+    os.chdir(project_path)
     subprocess.call(['xcodebuild', '-target', options['target_name'], '-configuration', options['build_config'], '-sdk', 'iphonesimulator', 'SYMROOT=build'], stdout=open('/dev/null', 'w'))
     os.chdir(previous_dir)
 
@@ -40,26 +41,38 @@ def waxsim(app_path, args, device):
     subprocess.call(subprocess_args)
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print 'Usage: make_screenshots.py config-file-path'
-        exit()
+    parser = argparse.ArgumentParser(description='Build iOS screenshots.')
+    parser.add_argument('--path', '-p', dest='destination', help='destination path for screenshots (overrides config)')
+    parser.add_argument('config', help='path to JSON config file')
+
+    args = parser.parse_args()
+    config_path = args.config
 
     ###
     # Read in configuration file
     ###
 
     try:
-        options = json.load(open(sys.argv[1]))
+        options = json.load(open(config_path))
     except IOError:
-        print 'Configuration file not found at ' + sys.argv[1]
+        print 'Configuration file not found at ' + config_path
         exit()
     except ValueError:
         print "Syntax error in JSON file."
         exit()
 
+    if args.destination:
+        options['destination_path'] = args.destination
+
     ###
     
-    app_path = os.path.join(options['project_path'], 'build', options['build_config'] + '-iphonesimulator', options['app_name'])
+    if os.path.isabs(options['project_path']):
+        project_path = options['project_path']
+    else:
+        #project_path is relative to the parent directory of config_path
+        project_path = os.path.realpath(os.path.join(os.path.dirname(config_path), options['project_path']))
+    
+    app_path = os.path.join(project_path, 'build', options['build_config'] + '-iphonesimulator', options['app_name'])
     
     print 'Building with ' + options['build_config'] + ' configuration...'
     compile_app()
